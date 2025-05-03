@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Remover</title>
+    <!-- === ADD FONT AWESOME === -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- ======================== -->
+    <style>
+        /* === CSS (Mostly Unchanged - Additions marked) === */
+        :root {
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --warning-color: #FFC107; /* Yellow Color */
+            --secondary-color: #6c757d; /* Added for Undo button */
+            --light-gray: #f8f9fa;
+            --medium-gray: #e9ecef; /* Background color */
+            --dark-gray: #343a40;
+            --border-color: #ced4da; /* Dashed border color */
+            --card-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+            --border-radius: 12px; /* More rounded corners */
+            --swatch-size: 30px; /* Color swatch size */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--medium-gray); /* Matching background */
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: var(--dark-gray);
+        }
+
+        .card {
+            background-color: #ffffff;
+            padding: 40px 35px; /* More padding */
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            max-width: 380px; /* Slightly narrower card */
+            width: 100%;
+            overflow: hidden; /* Ensure content respects border-radius */
+        }
+
+        .tagline {
+            text-align: center;
+            margin-bottom: 15px; /* Space below tagline */
+            font-size: 1.3em; /* Adjust font size */
+            font-weight: 500;
+            color: var(--dark-gray);
+            line-height: 1.4; /* Ensure consistent line height */
+        }
+
+        .tagline .highlight {
+            background-color: var(--warning-color); /* Use the existing yellow variable */
+            color: var(--dark-gray); /* Keep text dark */
+            padding: 2px 12px; /* Adjust padding for thickness and width */
+            border-radius: 8px; /* Slightly rounded corners */
+            display: inline-block; /* Allows padding and background */
+            margin-left: 5px; /* Space before "Free" */
+        }
+
+        h1 {
+            color: var(--dark-gray);
+            margin-top: 0; /* Set to 0 as tagline now has margin-bottom */
+            margin-bottom: 30px; /* Space below title */
+            font-size: 1.9em;
+            font-weight: 600;
+        }
+
+        #imageInput,
+        #bgImageInput { /* NEW: Hide bg image input too */
+            display: none;
+        }
+        #customColorPickerInput {
+            visibility: hidden; width: 0; height: 0; position: absolute; left: -9999px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color); border-radius: var(--border-radius);
+            padding: 50px 20px; margin: 20px auto 25px; cursor: pointer;
+            background-color: var(--light-gray); transition: background-color 0.2s ease, border-color 0.2s ease;
+            color: #6c757d; font-size: 1.05em; display: block;
+        }
+        .upload-area:hover { background-color: #e9ecef; border-color: #adb5bd; }
+
+        .icon-button-group {
+            display: flex; justify-content: space-around; align-items: center;
+            gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+
+        .image-display { margin-bottom: 15px; }
+
+        .result-wrapper {
+            position: relative; display: inline-block; max-width: 100%;
+            border-radius: var(--border-radius); overflow: hidden;
+            background-color: transparent; border: 1px solid #dee2e6;
+            transition: background-color 0.3s ease, background-image 0.3s ease; /* Added background-image */
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                              linear-gradient(135deg, #ccc 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #ccc 75%),
+                              linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px;
+            background-repeat: repeat; /* Default repeat for checkerboard */
+        }
+        /* NEW: Style when background image is applied */
+        .result-wrapper.has-bg-image {
+            background-size: cover; /* Cover the area */
+            background-position: center center; /* Center the image */
+            background-repeat: no-repeat; /* Do not repeat the image */
+        }
+
+
+        .image-display img {
+            max-width: 100%; height: auto; border-radius: var(--border-radius);
+            display: block; margin: 0 auto; position: relative; z-index: 1;
+            background-color: transparent !important;
+        }
+        #originalPreview { background-color: var(--light-gray); border: 1px solid #dee2e6; }
+
+        .btn {
+            color: white; border: none; padding: 14px 20px; border-radius: var(--border-radius);
+            cursor: pointer; font-size: 1.05em; font-weight: 500;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box; display: block; width: 100%;
+            text-decoration: none; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); text-align: center;
+        }
+        .btn-primary { background-color: var(--primary-color); box-shadow: 0 3px 8px rgba(0, 123, 255, 0.25); }
+        .btn-primary:hover { background-color: #0056b3; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.35); }
+        .btn-success { background-color: var(--success-color); box-shadow: 0 3px 8px rgba(40, 167, 69, 0.25); }
+        .btn-success:hover { background-color: #218838; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.35); }
+        .btn-warning { background-color: var(--warning-color); color: var(--dark-gray); box-shadow: 0 3px 8px rgba(255, 193, 7, 0.25); }
+        .btn-warning:hover { background-color: #e0a800; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.35); }
+        .btn-secondary { background-color: var(--secondary-color); color: white; box-shadow: 0 3px 8px rgba(108, 117, 125, 0.2); }
+        .btn-secondary:hover { background-color: #5a6268; box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3); }
+        .btn:disabled { background-color: #b0bec5; cursor: not-allowed; box-shadow: none; color: #6c757d; }
+
+        .icon-button-group .btn {
+            width: 55px; height: 55px; padding: 0; display: inline-flex;
+            align-items: center; justify-content: center; font-size: 1.4em;
+            margin-top: 0; flex-shrink: 0;
+        }
+
+        #removeBgButton { margin-top: 15px; }
+
+        .color-palette {
+            display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+            gap: 10px; margin-top: 20px; margin-bottom: 25px; padding: 10px 0;
+        }
+
+        .color-swatch, /* Combine common styles */
+        .bg-image-trigger {
+            width: var(--swatch-size); height: var(--swatch-size); border-radius: 50%;
+            cursor: pointer; border: 3px solid #ffffff; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8em; color: #555; background-color: #f8f9fa;
+        }
+        .color-swatch.transparent-swatch {
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                              linear-gradient(135deg, #ccc 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #ccc 75%),
+                              linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 10px 10px; background-position: 0 0, 5px 0, 5px -5px, 0px 5px;
+            background-color: #ffffff;
+        }
+        .color-swatch.transparent-swatch i { color: #555; }
+
+        .color-swatch.custom-color-trigger {
+            background-color: #e9ecef; border-style: dashed; border-color: #adb5bd;
+        }
+        .color-swatch.custom-color-trigger i { color: var(--secondary-color); }
+        .color-swatch.custom-color-trigger.has-custom-color {
+             border-style: solid; border-color: #ffffff; background-image: none;
+        }
+
+        /* NEW: Background Image Trigger Styles */
+        .bg-image-trigger {
+            background-color: #e9ecef; /* Similar to custom color trigger */
+            border-style: dashed;
+            border-color: #adb5bd;
+        }
+        .bg-image-trigger i {
+             color: var(--secondary-color);
+        }
+        /* NEW: Style when a background image IS selected */
+        .bg-image-trigger.active {
+            border-color: var(--primary-color); /* Highlight border */
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            /* Optional: Could show a small preview, but icon is simpler */
+        }
+        /* --- --- */
+
+        .color-swatch:hover,
+        .bg-image-trigger:hover {
+            transform: scale(1.1); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-swatch.active {
+            border-color: var(--primary-color); transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #status {
+            margin-top: 20px; font-size: 0.95em; color: #6c757d;
+            min-height: 20px; line-height: 1.4;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+
+</head>
+<body>
+
+<div class="card">
+    <div class="tagline">
+        100% Automatically and <span class="highlight">Free</span>
+    </div>
+    <h1>Background Remover</h1>
+
+    <label for="imageInput" class="upload-area" id="uploadArea">
+        <span>Click here to upload an image</span>
+    </label>
+    <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+    <input type="color" id="customColorPickerInput">
+    <!-- NEW: Hidden file input for background image -->
+    <input type="file" id="bgImageInput" accept="image/*" class="hidden">
+
+    <!-- Icon Button Group -->
+    <div class="icon-button-group hidden" id="iconActions">
+        <button id="toggleViewButton" class="btn btn-secondary" title="Toggle Original/Result View">
+            <i class="fas fa-arrows-rotate"></i>
+        </button>
+        <button id="undoButton" class="btn btn-secondary" title="Undo Removal">
+            <i class="fas fa-undo"></i>
+        </button>
+        <a id="downloadLink" href="#" download="background_removed.png" class="btn btn-warning" title="Download Image">
+            <i class="fas fa-download"></i>
+        </a>
+        <button id="uploadNewButton" class="btn btn-warning" title="Upload New Image">
+            <i class="fas fa-upload"></i>
+        </button>
+    </div>
+
+    <!-- Original Image Preview Container -->
+    <div class="image-display hidden" id="previewContainer">
+        <img id="originalPreview" src="#" alt="Original Preview">
+    </div>
+
+    <!-- Result Image Container -->
+    <div class="image-display hidden" id="resultContainer">
+        <div id="resultWrapper" class="result-wrapper">
+             <img id="resultImage" src="#" alt="Result Image">
+        </div>
+    </div>
+
+    <!-- Color Palette -->
+    <div id="colorPalette" class="color-palette hidden">
+        <!-- Color swatches and BG Image trigger added here by JavaScript -->
+    </div>
+
+    <div id="status" class="hidden"></div>
+
+    <!-- Actions Container (Initial Remove Button) -->
+    <div id="actions">
+         <button id="removeBgButton" class="btn btn-warning hidden">Remove Background</button>
+    </div>
+
+    <!-- Hidden canvas for generating download image -->
+    <canvas id="tempCanvas" class="hidden"></canvas>
+
+</div>
+
+<script>
+    // === JavaScript ===
+    const apiKey = "LaPrnJa7qUD2Z4A3DQwkfLan"; // <-- Replace with your Key
+
+    // API Key Warning
+    if (apiKey === "YOUR_REMOVE_BG_API_KEY" || !apiKey) {
+        console.warn("Please replace 'YOUR_REMOVE_BG_API_KEY' with your actual remove.bg API key in the JavaScript section.");
+        const keyWarning = document.createElement('p');
+        keyWarning.textContent = "Warning: API Key not set. Background removal won't work.";
+        keyWarning.style.color = 'red'; keyWarning.style.marginTop = '15px'; keyWarning.style.fontWeight = 'bold';
+        document.querySelector('.card').appendChild(keyWarning);
+    }
+
+    // DOM Elements
+    const imageInput = document.getElementById('imageInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const previewContainer = document.getElementById('previewContainer');
+    const originalPreview = document.getElementById('originalPreview');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultWrapper = document.getElementById('resultWrapper');
+    const resultImage = document.getElementById('resultImage');
+    const statusDiv = document.getElementById('status');
+    const actionsDiv = document.getElementById('actions');
+    const removeBgButton = document.getElementById('removeBgButton');
+    const iconActionsGroup = document.getElementById('iconActions');
+    const downloadLink = document.getElementById('downloadLink');
+    const uploadNewButton = document.getElementById('uploadNewButton');
+    const toggleViewButton = document.getElementById('toggleViewButton');
+    const undoButton = document.getElementById('undoButton');
+    const colorPalette = document.getElementById('colorPalette');
+    const tempCanvas = document.getElementById('tempCanvas');
+    const ctx = tempCanvas.getContext('2d');
+    const customColorPickerInput = document.getElementById('customColorPickerInput');
+    // NEW: Background Image Input
+    const bgImageInput = document.getElementById('bgImageInput');
+    let customColorSwatch = null;
+    let bgImageTrigger = null; // Will hold reference to the bg image trigger div
+
+    let selectedFile = null;
+    let resultObjectUrl = null;
+    let currentBackgroundType = 'transparent'; // 'transparent', 'color', 'image'
+    let currentBackgroundColor = 'transparent'; // Stores hex color if type is 'color'
+    let currentBackgroundImageDataUrl = null; // Stores Data URL if type is 'image'
+    let originalFileNameBase = 'image';
+
+    const backgroundColors = [
+        'transparent', '#FFFFFF', '#000000', '#FF5733', '#FFC300', '#DAF7A6',
+        '#33FFBD', '#33AFFF', '#5833FF', '#C70039', '#900C3F'
+    ];
+
+    // Reset UI Function
+    function resetUI() {
+        selectedFile = null;
+        if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; }
+        imageInput.value = '';
+        bgImageInput.value = ''; // NEW: Clear bg image input
+        currentBackgroundType = 'transparent';
+        currentBackgroundColor = 'transparent';
+        currentBackgroundImageDataUrl = null; // NEW: Clear bg image data
+        originalFileNameBase = 'image';
+        customColorPickerInput.value = '#ffffff';
+
+        uploadArea.classList.remove('hidden');
+        previewContainer.classList.add('hidden');
+        originalPreview.src = '#';
+        resultContainer.classList.add('hidden');
+        resultImage.src = '#';
+        colorPalette.classList.add('hidden');
+        colorPalette.innerHTML = '';
+        customColorSwatch = null;
+        bgImageTrigger = null; // NEW: Clear bg image trigger ref
+        // Reset resultWrapper styles completely
+        resultWrapper.style.backgroundColor = 'transparent';
+        resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+        resultWrapper.classList.remove('has-bg-image'); // NEW: Remove class
+
+
+        statusDiv.classList.add('hidden');
+        statusDiv.textContent = '';
+        removeBgButton.classList.add('hidden');
+        iconActionsGroup.classList.add('hidden');
+        removeBgButton.disabled = true;
+        removeBgButton.textContent = 'Remove Background';
+        downloadLink.removeAttribute('data-bgcolor');
+        downloadLink.removeAttribute('data-bgimage'); // NEW: Remove bg image data attribute
+        downloadLink.removeAttribute('href');
+        downloadLink.title = "Download Image";
+    }
+
+    // --- Populate Color Palette ---
+    function populateColorPalette() {
+        colorPalette.innerHTML = '';
+        customColorSwatch = null;
+        bgImageTrigger = null; // NEW: Reset reference
+
+        // Add predefined swatches
+        backgroundColors.forEach(color => {
+            const swatch = createSwatch(color);
+            colorPalette.appendChild(swatch);
+        });
+
+        // Add the custom color trigger swatch
+        customColorSwatch = createSwatch('custom');
+        colorPalette.appendChild(customColorSwatch);
+
+        // NEW: Add the background image upload trigger
+        bgImageTrigger = document.createElement('div');
+        bgImageTrigger.classList.add('bg-image-trigger');
+        bgImageTrigger.title = 'Upload Background Image';
+        const bgIcon = document.createElement('i');
+        bgIcon.className = 'fas fa-image'; // Image icon
+        bgImageTrigger.appendChild(bgIcon);
+        bgImageTrigger.addEventListener('click', () => {
+            bgImageInput.click(); // Open the hidden file input for background images
+        });
+        colorPalette.appendChild(bgImageTrigger);
+        // ---
+
+        // Make transparent swatch active by default after initial load
+        const transparentSwatch = colorPalette.querySelector('.transparent-swatch');
+        if (transparentSwatch) transparentSwatch.classList.add('active');
+
+        colorPalette.classList.remove('hidden');
+    }
+
+    // --- Create a single swatch element ---
+    function createSwatch(color) {
+        const swatch = document.createElement('div');
+        swatch.classList.add('color-swatch');
+        swatch.dataset.color = color;
+
+        const icon = document.createElement('i');
+
+        if (color === 'transparent') {
+            swatch.classList.add('transparent-swatch');
+            swatch.title = 'Transparent Background';
+            icon.className = 'fas fa-ban';
+            swatch.appendChild(icon);
+            swatch.addEventListener('click', handleColorSelection); // Add listener here too
+            // swatch.classList.add('active'); // Don't make active here, do it in populateColorPalette
+        } else if (color === 'custom') {
+            swatch.classList.add('custom-color-trigger');
+            swatch.title = 'Choose Custom Color';
+            icon.className = 'fas fa-palette';
+            swatch.appendChild(icon);
+            swatch.addEventListener('click', () => {
+                customColorPickerInput.click();
+            });
+        } else {
+            swatch.style.backgroundColor = color;
+            swatch.title = `Background: ${color}`;
+            swatch.addEventListener('click', handleColorSelection);
+        }
+
+        return swatch;
+    }
+
+
+    // --- Handle Color Selection (from predefined or final custom swatch) ---
+    function handleColorSelection(event) {
+        const selectedSwatch = event.currentTarget;
+        const color = selectedSwatch.dataset.color; // Get color hex or 'transparent'
+
+        currentBackgroundType = color === 'transparent' ? 'transparent' : 'color';
+        currentBackgroundColor = color;
+        currentBackgroundImageDataUrl = null; // Clear any selected bg image
+
+        // Update wrapper background
+         if (color === 'transparent') {
+            resultWrapper.style.backgroundColor = 'transparent';
+            resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+            resultWrapper.classList.remove('has-bg-image'); // Ensure image class is removed
+            downloadLink.title = "Download Transparent PNG";
+            downloadLink.download = `${originalFileNameBase}_bg_removed.png`;
+            downloadLink.removeAttribute('data-bgcolor');
+            downloadLink.removeAttribute('data-bgimage'); // NEW
+            downloadLink.href = resultObjectUrl; // Direct link for transparent
+        } else {
+            resultWrapper.style.backgroundColor = color;
+            resultWrapper.style.backgroundImage = 'none'; // Clear any image/checkerboard
+            resultWrapper.classList.remove('has-bg-image'); // Ensure image class is removed
+            downloadLink.title = `Download with ${color} Background`;
+            downloadLink.download = `${originalFileNameBase}_bg_${color.replace('#','')}.png`;
+            downloadLink.setAttribute('data-bgcolor', color);
+            downloadLink.removeAttribute('data-bgimage'); // NEW
+            downloadLink.removeAttribute('href'); // Needs canvas generation
+        }
+
+        // Update active state on swatches and triggers
+        document.querySelectorAll('.color-palette .color-swatch, .color-palette .bg-image-trigger').forEach(s => s.classList.remove('active'));
+        selectedSwatch.classList.add('active');
+        if(bgImageTrigger) bgImageTrigger.classList.remove('active'); // Deactivate bg image trigger if a color is selected
+    }
+
+    // --- Handle Custom Color Picker Input ---
+    customColorPickerInput.addEventListener('input', (event) => {
+        const newColor = event.target.value;
+
+        if (customColorSwatch) {
+            customColorSwatch.style.backgroundColor = newColor;
+            customColorSwatch.dataset.color = newColor;
+            customColorSwatch.title = `Background: ${newColor}`;
+            customColorSwatch.innerHTML = ''; // Remove palette icon
+            customColorSwatch.classList.add('has-custom-color');
+
+            // Ensure only one event listener
+            customColorSwatch.removeEventListener('click', handleColorSelection);
+            customColorSwatch.addEventListener('click', handleColorSelection);
+
+            // Simulate click to apply the color immediately and set active state
+            // Use setTimeout to ensure DOM updates before click simulation
+            setTimeout(() => customColorSwatch.click(), 0);
+        }
+    });
+
+    // --- NEW: Handle Background Image Input ---
+    bgImageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                currentBackgroundImageDataUrl = e.target.result; // Store Data URL
+                currentBackgroundType = 'image';
+                currentBackgroundColor = 'transparent'; // Reset color value
+
+                // Apply background image to wrapper
+                resultWrapper.style.backgroundImage = `url('${currentBackgroundImageDataUrl}')`;
+                resultWrapper.style.backgroundColor = 'transparent'; // Ensure no color interferes
+                resultWrapper.classList.add('has-bg-image'); // Apply cover/center styles
+
+                // Update download link
+                downloadLink.title = 'Download with Custom Background Image';
+                downloadLink.download = `${originalFileNameBase}_with_custom_bg.png`;
+                downloadLink.removeAttribute('data-bgcolor');
+                downloadLink.setAttribute('data-bgimage', 'true'); // Indicate image bg for download handler
+                downloadLink.removeAttribute('href'); // Needs canvas generation
+
+                // Update active states
+                document.querySelectorAll('.color-palette .color-swatch, .color-palette .bg-image-trigger').forEach(s => s.classList.remove('active'));
+                if (bgImageTrigger) bgImageTrigger.classList.add('active');
+
+                statusDiv.textContent = 'Custom background image applied.';
+                statusDiv.classList.remove('hidden');
+            };
+
+            reader.onerror = () => {
+                console.error("Error reading background image file.");
+                statusDiv.textContent = 'Error loading background image.';
+                statusDiv.classList.remove('hidden');
+                // Reset relevant state if needed
+                currentBackgroundImageDataUrl = null;
+                 if (bgImageTrigger) bgImageTrigger.classList.remove('active');
+                 // Optionally revert to the previously selected color/transparent state? Or just leave as is?
+            };
+
+            reader.readAsDataURL(file);
+        } else if (file) {
+            statusDiv.textContent = 'Please select a valid image file for the background.';
+            statusDiv.classList.remove('hidden');
+            bgImageInput.value = ''; // Clear invalid selection
+        }
+    });
+    // --- ---------------------------------- ---
+
+     // --- Download with Background (Color or Image) ---
+    function downloadWithBackground(type, value) { // type = 'color' or 'image', value = hex or dataUrl
+        if (!resultImage.src || resultImage.src === '#' || !resultImage.naturalWidth) {
+            console.error("Result image not loaded or invalid.");
+            statusDiv.textContent = "Error: Cannot generate download image.";
+            statusDiv.classList.remove('hidden');
+            return;
+        }
+
+        const fgImg = new Image(); // Foreground (result) image
+        // IMPORTANT: Set crossOrigin for Tainted Canvas prevention if resultObjectUrl might be from different origin (less likely with Blob URL)
+        // fgImg.crossOrigin = "Anonymous"; // Usually not needed for Blob URLs
+
+        fgImg.onload = () => {
+            const imgWidth = fgImg.naturalWidth;
+            const imgHeight = fgImg.naturalHeight;
+
+            tempCanvas.width = imgWidth;
+            tempCanvas.height = imgHeight;
+            ctx.clearRect(0, 0, imgWidth, imgHeight);
+
+            const drawForeground = () => {
+                ctx.drawImage(fgImg, 0, 0);
+                // Generate data URL and trigger download
+                try {
+                    const dataUrl = tempCanvas.toDataURL('image/png');
+                    const tempLink = document.createElement('a');
+                    tempLink.href = dataUrl;
+                    tempLink.download = downloadLink.download || `${originalFileNameBase}_processed.png`;
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    document.body.removeChild(tempLink);
+                    statusDiv.textContent = "Download started..."; // Provide feedback
+                    statusDiv.classList.remove('hidden');
+                } catch (e) {
+                    console.error("Canvas toDataURL error:", e);
+                    statusDiv.textContent = "Error: Could not generate download. Canvas might be tainted.";
+                    if (e.name === "SecurityError") {
+                        statusDiv.textContent += " (Cross-origin image issue?)";
+                    }
+                    statusDiv.classList.remove('hidden');
+                }
+            };
+
+            if (type === 'color' && value && value !== 'transparent') {
+                // Draw solid color background
+                ctx.fillStyle = value;
+                ctx.fillRect(0, 0, imgWidth, imgHeight);
+                drawForeground(); // Draw foreground on top
+            } else if (type === 'image' && value) {
+                // Draw image background
+                const bgImg = new Image();
+                // IMPORTANT: Also set crossOrigin if the background image data URL might cause issues
+                // bgImg.crossOrigin = "Anonymous"; // Generally needed if source is external URL, less so for Data URL
+                bgImg.onload = () => {
+                    // Draw background image, covering the canvas
+                    // Maintain aspect ratio while covering:
+                    const canvasAspect = imgWidth / imgHeight;
+                    const bgAspect = bgImg.naturalWidth / bgImg.naturalHeight;
+                    let sx = 0, sy = 0, sw = bgImg.naturalWidth, sh = bgImg.naturalHeight;
+                    let dx = 0, dy = 0, dw = imgWidth, dh = imgHeight;
+
+                    if (bgAspect > canvasAspect) { // Background is wider than canvas
+                        sw = bgImg.naturalHeight * canvasAspect;
+                        sx = (bgImg.naturalWidth - sw) / 2;
+                    } else { // Background is taller than canvas
+                        sh = bgImg.naturalWidth / canvasAspect;
+                        sy = (bgImg.naturalHeight - sh) / 2;
+                    }
+                    ctx.drawImage(bgImg, sx, sy, sw, sh, dx, dy, dw, dh);
+                    drawForeground(); // Draw foreground on top
+                };
+                bgImg.onerror = () => {
+                     console.error("Error loading background image into canvas.");
+                     statusDiv.textContent = "Error: Could not prepare background for download.";
+                     statusDiv.classList.remove('hidden');
+                     // Optionally draw foreground anyway, or stop? Stop is safer.
+                };
+                bgImg.src = value; // The Data URL stored earlier
+            } else {
+                 console.warn("Download function called unexpectedly for transparent background.");
+                 statusDiv.textContent = "Error: Invalid background type for download generation.";
+                 statusDiv.classList.remove('hidden');
+            }
+        };
+
+        fgImg.onerror = () => {
+            console.error("Error loading result image into canvas for download.");
+            statusDiv.textContent = "Error: Could not prepare foreground for download.";
+            statusDiv.classList.remove('hidden');
+        };
+        // Set src AFTER defining onload/onerror
+        fgImg.src = resultImage.src; // Use the blob URL
+    }
+    // --- ---------------------------------- ---
+
+
+    // imageInput change listener
+    imageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+
+        if (file) {
+             if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+                 statusDiv.textContent = 'Error: Please upload a PNG, JPG, or WEBP file.';
+                 statusDiv.classList.remove('hidden');
+                 resetUI(); // Reset fully on invalid type
+                 uploadArea.classList.remove('hidden');
+                 return;
+            }
+
+            // Reset parts of the UI relevant to previous results before showing new preview
+            if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; }
+            currentBackgroundType = 'transparent';
+            currentBackgroundColor = 'transparent';
+            currentBackgroundImageDataUrl = null;
+            resultWrapper.style.backgroundColor = 'transparent';
+            resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+             resultWrapper.classList.remove('has-bg-image');
+            downloadLink.removeAttribute('data-bgcolor');
+            downloadLink.removeAttribute('data-bgimage');
+            downloadLink.removeAttribute('href');
+            downloadLink.title = "Download Image";
+            colorPalette.classList.add('hidden');
+            colorPalette.innerHTML = '';
+            customColorSwatch = null;
+            bgImageTrigger = null;
+            resultContainer.classList.add('hidden');
+            iconActionsGroup.classList.add('hidden');
+            customColorPickerInput.value = '#ffffff';
+            bgImageInput.value = '';
+
+            selectedFile = file; // Store valid file
+            const originalFileName = selectedFile.name;
+            originalFileNameBase = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalPreview.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+                // Keep result hidden until processing
+            }
+            reader.onerror = () => {
+                 console.error("Error reading image file for preview.");
+                 statusDiv.textContent = 'Error loading image preview.';
+                 statusDiv.classList.remove('hidden');
+                 resetUI(); // Reset fully on read error
+            };
+            reader.readAsDataURL(selectedFile);
+
+            uploadArea.classList.add('hidden');
+            statusDiv.textContent = `Ready to process: ${selectedFile.name}`;
+            statusDiv.classList.remove('hidden');
+            removeBgButton.classList.remove('hidden');
+            removeBgButton.disabled = false;
+            removeBgButton.textContent = 'Remove Background';
+
+        } else {
+            // File selection cancelled
+            selectedFile = null;
+             // Only reset if something was potentially shown before cancellation
+            if (!previewContainer.classList.contains('hidden') || !removeBgButton.classList.contains('hidden')) {
+                 resetUI();
+            } else {
+                 // Ensure upload area is visible if nothing was shown
+                 uploadArea.classList.remove('hidden');
+                 statusDiv.classList.add('hidden');
+            }
+        }
+    });
+
+    // removeBgButton click listener (**UPDATED with Error Handling**)
+    removeBgButton.addEventListener('click', () => {
+        if (!selectedFile) {
+            statusDiv.textContent = 'Please upload an image file first.';
+            statusDiv.classList.remove('hidden');
+            return;
+        }
+        if (apiKey === "YOUR_REMOVE_BG_API_KEY" || !apiKey) {
+            statusDiv.textContent = 'Error: API Key not configured.';
+            statusDiv.classList.remove('hidden');
+            console.error("API Key is missing or placeholder.");
+            return;
+        }
+
+        statusDiv.textContent = 'Processing, please wait...';
+        statusDiv.classList.remove('hidden');
+        removeBgButton.disabled = true;
+        removeBgButton.textContent = 'Processing...';
+        iconActionsGroup.classList.add('hidden');
+        previewContainer.classList.add('hidden'); // Hide preview during processing
+        resultContainer.classList.add('hidden'); // Ensure result is hidden initially
+        colorPalette.classList.add('hidden'); // Hide palette during processing
+
+        const formData = new FormData();
+        formData.append('image_file', selectedFile);
+        formData.append('size', 'auto'); // Request auto size
+
+        // --- START: Updated Fetch Block ---
+        fetch('https://api.remove.bg/v1.0/removebg', {
+            method: 'POST',
+            headers: {
+                'X-Api-Key': apiKey
+                // No 'Content-Type': Let browser set it for FormData
+            },
+            body: formData
+        })
+        .then(response => {
+            console.log("API Response Status:", response.status, response.statusText); // Debugging
+            if (!response.ok) {
+                // If response is not OK, read the error message from remove.bg
+                // remove.bg sends error details as JSON or sometimes plain text
+                return response.text().then(text => { // Use text first, try JSON if possible
+                    let errorMessage = `API Error ${response.status}: `;
+                    try {
+                        const errorData = JSON.parse(text);
+                        if (errorData && errorData.errors && errorData.errors.length > 0) {
+                            errorMessage += errorData.errors.map(e => e.title || e.detail).join(', ');
+                        } else {
+                            errorMessage += response.statusText || "Unknown API error"; // Fallback
+                        }
+                    } catch (jsonError) {
+                        // If parsing JSON fails, use the raw text response
+                        errorMessage += text || response.statusText || "Unknown API error";
+                    }
+                     // Throw an error to be caught by the .catch() block
+                    throw new Error(errorMessage);
+                });
+            }
+            // If response IS ok, proceed to get the blob
+            console.log("Response OK, getting blob..."); // Debugging
+            return response.blob();
+        })
+        .then(blob => {
+            console.log("Received Blob:", blob); // Debugging
+            if (!blob || blob.size === 0) {
+                 throw new Error("Received empty response from API. Check input image or API key/quota.");
+            }
+             // Check if the blob type is really an image, could be application/json on error sometimes
+             if (!blob.type.startsWith('image/')) {
+                 console.warn("Received blob is not an image type:", blob.type);
+                 // Try to read blob as text to see if it's an error message
+                return blob.text().then(errorText => {
+                    throw new Error(`API returned unexpected data type: ${blob.type}. Content: ${errorText.substring(0, 100)}...`);
+                });
+            }
+
+            if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); }
+            resultObjectUrl = URL.createObjectURL(blob);
+            console.log("Created Object URL:", resultObjectUrl); // Debugging
+
+            // Set onload and onerror BEFORE setting src
+            resultImage.onload = () => {
+                console.log("Result image loaded successfully."); // Debugging
+                resultContainer.classList.remove('hidden'); // Show result container
+                previewContainer.classList.add('hidden'); // Keep original hidden initially
+
+                // Default to transparent background after processing
+                currentBackgroundType = 'transparent';
+                currentBackgroundColor = 'transparent';
+                currentBackgroundImageDataUrl = null;
+                resultWrapper.style.backgroundColor = 'transparent';
+                resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+                 resultWrapper.classList.remove('has-bg-image');
+
+                downloadLink.href = resultObjectUrl; // Direct link for initial transparent state
+                downloadLink.download = `${originalFileNameBase}_bg_removed.png`;
+                downloadLink.removeAttribute('data-bgcolor');
+                downloadLink.removeAttribute('data-bgimage');
+                downloadLink.title = "Download Transparent PNG";
+
+                statusDiv.textContent = 'Background removal complete! Select a background option below.';
+                statusDiv.classList.remove('hidden'); // Make sure status is visible
+                removeBgButton.classList.add('hidden'); // Hide the remove button
+                removeBgButton.textContent = 'Remove Background'; // Reset text for next time
+                iconActionsGroup.classList.remove('hidden'); // Show action icons
+                toggleViewButton.title = "Show Original";
+                // toggleViewButton.innerHTML = '<i class="fas fa-arrows-rotate"></i>'; // Already set
+
+                populateColorPalette(); // Populate and show the color palette + bg image trigger
+            };
+            resultImage.onerror = () => {
+                console.error("Error loading result image blob URL:", resultObjectUrl); // Debugging
+                if (resultObjectUrl) URL.revokeObjectURL(resultObjectUrl); // Clean up failed URL
+                resultObjectUrl = null;
+                throw new Error('Failed to load the processed image data. The format might be unsupported by the browser.'); // Throw error to be caught
+            };
+
+            resultImage.src = resultObjectUrl; // Set src AFTER handlers are attached
+        })
+        .catch(error => {
+            console.error('Background removal process failed:', error); // Log the caught error
+            statusDiv.textContent = `Error: ${error.message || 'Background removal failed. Check API Key/Quota/Image or browser console.'}`;
+            statusDiv.classList.remove('hidden');
+
+            // Reset UI elements to allow trying again or uploading new
+            removeBgButton.disabled = false; // Re-enable button
+            removeBgButton.textContent = 'Remove Background';
+            removeBgButton.classList.remove('hidden'); // Show the button again (it was hidden)
+            iconActionsGroup.classList.add('hidden'); // Hide action icons
+            if(selectedFile && originalPreview.src !== '#') {
+                previewContainer.classList.remove('hidden'); // Show original preview again if it exists
+            } else {
+                 previewContainer.classList.add('hidden'); // Hide preview if it wasn't properly loaded
+                 uploadArea.classList.remove('hidden'); // Show upload area if preview isn't valid
+            }
+            resultContainer.classList.add('hidden'); // Hide result area
+            colorPalette.classList.add('hidden'); // Hide color palette
+
+            // Clean up potentially created blob URL if it exists and wasn't cleaned by resultImage.onerror
+            if (resultObjectUrl) {
+                URL.revokeObjectURL(resultObjectUrl);
+                resultObjectUrl = null;
+            }
+            resultImage.src = '#';
+        });
+        // --- END: Updated Fetch Block ---
+    });
+
+    // uploadNewButton listener
+    uploadNewButton.addEventListener('click', resetUI);
+
+    // toggleViewButton listener
+    toggleViewButton.addEventListener('click', () => {
+        if (!resultImage.src || resultImage.src === '#') return; // Don't toggle if no result yet
+
+        const isResultHidden = resultContainer.classList.contains('hidden');
+        if (isResultHidden) { // If result is hidden, show it (means original is currently shown)
+            previewContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            colorPalette.classList.remove('hidden');
+            toggleViewButton.title = 'Show Original';
+        } else { // If result is showing, hide it and show original
+            previewContainer.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            colorPalette.classList.add('hidden');
+            toggleViewButton.title = 'Show Result';
+        }
+    });
+
+    // undoButton listener
+    undoButton.addEventListener('click', () => {
+        // Go back to the state before clicking "Remove Background"
+        if (!selectedFile || !originalPreview.src || originalPreview.src === '#') {
+            resetUI(); // If something went wrong, just reset fully
+            return;
+        }
+
+        // Hide result, show original preview
+        resultContainer.classList.add('hidden');
+        previewContainer.classList.remove('hidden');
+        // Hide palette and action buttons
+        colorPalette.classList.add('hidden');
+        colorPalette.innerHTML = '';
+        iconActionsGroup.classList.add('hidden');
+        // Show the remove button again
+        removeBgButton.classList.remove('hidden');
+        removeBgButton.disabled = false;
+        removeBgButton.textContent = 'Remove Background';
+
+        // Reset background states
+        if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; }
+        resultImage.src = '#';
+        currentBackgroundType = 'transparent';
+        currentBackgroundColor = 'transparent';
+        currentBackgroundImageDataUrl = null;
+        resultWrapper.style.backgroundColor = 'transparent';
+        resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+        resultWrapper.classList.remove('has-bg-image');
+        bgImageInput.value = ''; // Clear bg image input
+
+        downloadLink.removeAttribute('data-bgcolor');
+        downloadLink.removeAttribute('data-bgimage');
+        downloadLink.removeAttribute('href');
+        downloadLink.title = "Download Image";
+
+        statusDiv.textContent = `Ready to process: ${selectedFile.name}`;
+        statusDiv.classList.remove('hidden');
+    });
+
+     // Download Link Click Handler
+     downloadLink.addEventListener('click', (event) => {
+        const bgColor = downloadLink.getAttribute('data-bgcolor');
+        const bgImageFlag = downloadLink.getAttribute('data-bgimage');
+
+        // Check if result is actually available
+        if (!resultObjectUrl || resultImage.src === '#' || !resultImage.naturalWidth) {
+             event.preventDefault();
+             console.warn("Download clicked before image was processed or without a valid source.");
+             statusDiv.textContent = 'Error: Processed image not available for download.';
+             statusDiv.classList.remove('hidden');
+             return;
+        }
+
+        // Handle background generation if needed
+        if (bgImageFlag === 'true' && currentBackgroundImageDataUrl) {
+             event.preventDefault(); // Prevent default link behavior
+             downloadWithBackground('image', currentBackgroundImageDataUrl);
+        } else if (bgColor && bgColor !== 'transparent') {
+            event.preventDefault(); // Prevent default link behavior
+            downloadWithBackground('color', bgColor);
+        }
+        // If neither condition is met (e.g., it's transparent), the default href behavior (already set on the link) is allowed.
+    });
+
+    // Initial setup and cleanup
+    document.addEventListener('DOMContentLoaded', resetUI);
+    window.addEventListener('beforeunload', () => {
+        if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); }
+    });
+
+</script>
+
+</body>
+</html>
