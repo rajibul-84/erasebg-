@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Remover</title>
+    <!-- === ADD FONT AWESOME === -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- ======================== -->
+    <style>
+        /* === CSS (Mostly Unchanged - Additions/Modifications marked) === */
+        :root {
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --warning-color: #FFC107; /* Yellow Color */
+            --secondary-color: #6c757d; /* Used for Preview button now */
+            --light-gray: #f8f9fa;
+            --medium-gray: #e9ecef; /* Background color */
+            --dark-gray: #343a40;
+            --border-color: #ced4da; /* Dashed border color */
+            --card-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+            --border-radius: 12px; /* More rounded corners */
+            --swatch-size: 30px; /* Color swatch size */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--medium-gray); /* Matching background */
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: var(--dark-gray);
+        }
+
+        .card {
+            background-color: #ffffff;
+            padding: 40px 35px; /* More padding */
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            max-width: 380px; /* Slightly narrower card */
+            width: 100%;
+            overflow: hidden; /* Ensure content respects border-radius */
+        }
+
+        .tagline {
+            text-align: center;
+            margin-bottom: 15px; /* Space below tagline */
+            font-size: 1.3em; /* Adjust font size */
+            font-weight: 500;
+            color: var(--dark-gray);
+            line-height: 1.4; /* Ensure consistent line height */
+        }
+
+        .tagline .highlight {
+            background-color: var(--warning-color); /* Use the existing yellow variable */
+            color: var(--dark-gray); /* Keep text dark */
+            padding: 2px 12px; /* Adjust padding for thickness and width */
+            border-radius: 8px; /* Slightly rounded corners */
+            display: inline-block; /* Allows padding and background */
+            margin-left: 5px; /* Space before "Free" */
+        }
+
+        h1 {
+            color: var(--dark-gray);
+            margin-top: 0; /* Set to 0 as tagline now has margin-bottom */
+            margin-bottom: 30px; /* Space below title */
+            font-size: 1.9em;
+            font-weight: 600;
+        }
+
+        #imageInput,
+        #bgImageInput { /* Hide bg image input too */
+            display: none;
+        }
+        #customColorPickerInput {
+            visibility: hidden; width: 0; height: 0; position: absolute; left: -9999px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color); border-radius: var(--border-radius);
+            padding: 50px 20px; margin: 20px auto 25px; cursor: pointer;
+            background-color: var(--light-gray); transition: background-color 0.2s ease, border-color 0.2s ease;
+            color: #6c757d; font-size: 1.05em; display: block;
+        }
+        .upload-area:hover { background-color: #e9ecef; border-color: #adb5bd; }
+
+        /* --- Adjusted Icon Button Group styles for better wrapping/spacing --- */
+        .icon-button-group {
+            display: flex;
+            justify-content: center; /* Center items */
+            align-items: center;
+            gap: 12px; /* Consistent gap */
+            margin-bottom: 20px;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+
+        .image-display { margin-bottom: 15px; }
+
+        .result-wrapper {
+            position: relative; display: inline-block; max-width: 100%;
+            border-radius: var(--border-radius); overflow: hidden;
+            background-color: transparent; border: 1px solid #dee2e6;
+            transition: background-color 0.3s ease, background-image 0.3s ease; /* Added background-image */
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                              linear-gradient(135deg, #ccc 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #ccc 75%),
+                              linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px;
+            background-repeat: repeat; /* Default repeat for checkerboard */
+        }
+        .result-wrapper.has-bg-image {
+            background-size: cover; /* Cover the area */
+            background-position: center center; /* Center the image */
+            background-repeat: no-repeat; /* Do not repeat the image */
+        }
+
+
+        .image-display img {
+            max-width: 100%; height: auto; border-radius: var(--border-radius);
+            display: block; margin: 0 auto; position: relative; z-index: 1;
+            background-color: transparent !important;
+        }
+        #originalPreview { background-color: var(--light-gray); border: 1px solid #dee2e6; }
+
+        .btn {
+            color: white; border: none; padding: 14px 20px; border-radius: var(--border-radius);
+            cursor: pointer; font-size: 1.05em; font-weight: 500;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box; display: block; width: 100%; /* Changed from inline-block */
+            text-decoration: none; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); text-align: center;
+        }
+        .btn-primary { background-color: var(--primary-color); box-shadow: 0 3px 8px rgba(0, 123, 255, 0.25); }
+        .btn-primary:hover { background-color: #0056b3; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.35); }
+        .btn-success { background-color: var(--success-color); box-shadow: 0 3px 8px rgba(40, 167, 69, 0.25); }
+        .btn-success:hover { background-color: #218838; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.35); }
+        .btn-warning { background-color: var(--warning-color); color: var(--dark-gray); box-shadow: 0 3px 8px rgba(255, 193, 7, 0.25); }
+        .btn-warning:hover { background-color: #e0a800; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.35); }
+        .btn-secondary { background-color: var(--secondary-color); color: white; box-shadow: 0 3px 8px rgba(108, 117, 125, 0.2); }
+        .btn-secondary:hover { background-color: #5a6268; box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3); }
+        .btn:disabled { background-color: #b0bec5; cursor: not-allowed; box-shadow: none; color: #6c757d; }
+
+        /* --- Ensure icon buttons keep their size but don't force full width --- */
+        .icon-button-group .btn {
+            width: 55px; /* Fixed width */
+            height: 55px; /* Fixed height */
+            padding: 0;
+            display: inline-flex; /* Keep inline-flex for centering content */
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+            margin-top: 0; /* Reset margin if any */
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+
+        #removeBgButton { margin-top: 15px; }
+
+        .color-palette {
+            display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+            gap: 10px; margin-top: 20px; margin-bottom: 25px; padding: 10px 0;
+        }
+
+        .color-swatch, /* Combine common styles */
+        .bg-image-trigger {
+            width: var(--swatch-size); height: var(--swatch-size); border-radius: 50%;
+            cursor: pointer; border: 3px solid #ffffff; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8em; color: #555; background-color: #f8f9fa;
+        }
+        .color-swatch.transparent-swatch {
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                              linear-gradient(135deg, #ccc 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #ccc 75%),
+                              linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 10px 10px; background-position: 0 0, 5px 0, 5px -5px, 0px 5px;
+            background-color: #ffffff;
+        }
+        .color-swatch.transparent-swatch i { color: #555; }
+
+        .color-swatch.custom-color-trigger {
+            background-color: #e9ecef; border-style: dashed; border-color: #adb5bd;
+        }
+        .color-swatch.custom-color-trigger i { color: var(--secondary-color); }
+        .color-swatch.custom-color-trigger.has-custom-color {
+             border-style: solid; border-color: #ffffff; background-image: none;
+        }
+
+        /* NEW: Background Image Trigger Styles */
+        .bg-image-trigger {
+            background-color: #e9ecef; /* Similar to custom color trigger */
+            border-style: dashed;
+            border-color: #adb5bd;
+        }
+        .bg-image-trigger i {
+             color: var(--secondary-color);
+        }
+        .bg-image-trigger.active {
+            border-color: var(--primary-color); /* Highlight border */
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-swatch:hover,
+        .bg-image-trigger:hover {
+            transform: scale(1.1); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-swatch.active {
+            border-color: var(--primary-color); transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #status {
+            margin-top: 20px; font-size: 0.95em; color: #6c757d;
+            min-height: 20px; line-height: 1.4;
+        }
+
+        .hidden { display: none !important; }
+
+        /* === NEW: Preview Modal Styles === */
+        .preview-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: hidden; /* Disable scroll on body when modal is open */
+            background-color: rgba(0,0,0,0.8); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+            display: flex; /* Use flex for centering */
+        }
+
+        .preview-modal-content {
+            position: relative;
+            background-color: #fefefe;
+            margin: auto;
+            padding: 0; /* Padding handled by inner elements */
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 90vw; /* Limit width */
+            max-height: 95vh; /* Limit height */
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column; /* Stack image container and controls */
+            overflow: hidden; /* Contain elements */
+        }
+
+        .preview-modal-header {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
+        }
+        .preview-modal-header h2 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .preview-modal-close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            background: none;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 5px;
+        }
+        .preview-modal-close:hover,
+        .preview-modal-close:focus {
+            color: #ccc;
+            text-decoration: none;
+        }
+
+        .preview-image-container {
+             flex-grow: 1; /* Take available space */
+             overflow: auto; /* IMPORTANT: Enable scroll/pan when image is larger */
+             background-color: #e0e0e0; /* Light gray background for contrast */
+             display: flex; /* Center image initially */
+             justify-content: center;
+             align-items: center;
+             cursor: grab; /* Indicate draggable */
+             min-height: 200px; /* Ensure some minimum height */
+             background-image: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                              linear-gradient(135deg, #ccc 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #ccc 75%),
+                              linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px;
+        }
+        .preview-image-container.grabbing {
+            cursor: grabbing;
+        }
+
+        #modalImage {
+            display: block;
+            max-width: none; /* Override potential max-width from other styles */
+            width: auto; /* Start with natural width, adjusted by scale */
+            height: auto; /* Maintain aspect ratio */
+            max-height: 85vh; /* Limit initial height */
+            transform-origin: center center; /* Zoom from center */
+            transition: transform 0.15s ease-out; /* Smooth zoom */
+            user-select: none; /* Prevent text selection on image */
+            -webkit-user-drag: none; /* Prevent default image drag */
+        }
+
+        .preview-modal-controls {
+            padding: 10px 15px;
+            background-color: #f1f1f1;
+            text-align: center;
+            border-bottom-left-radius: var(--border-radius);
+            border-bottom-right-radius: var(--border-radius);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .preview-modal-controls button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            min-width: 40px; /* Ensure buttons have some width */
+        }
+        .preview-modal-controls button:hover {
+            background-color: #5a6268;
+        }
+        .preview-modal-controls span {
+            font-weight: 500;
+            min-width: 50px;
+            display: inline-block;
+        }
+        /* === END: Preview Modal Styles === */
+
+
+    </style>
+
+</head>
+<body>
+
+<div class="card">
+    <div class="tagline">
+        100% Automatically and <span class="highlight">Free</span>
+    </div>
+    <h1>Background Remover</h1>
+
+    <label for="imageInput" class="upload-area" id="uploadArea">
+        <span>Click here to upload an image</span>
+    </label>
+    <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+    <input type="color" id="customColorPickerInput">
+    <input type="file" id="bgImageInput" accept="image/*" class="hidden">
+
+    <!-- Icon Button Group (Reordered) -->
+    <div class="icon-button-group hidden" id="iconActions">
+        <!-- 1. Download Image -->
+        <a id="downloadLink" href="#" download="background_removed.png" class="btn btn-warning" title="Download Image">
+            <i class="fas fa-download"></i>
+        </a>
+        <!-- 2. Upload New Image -->
+        <button id="uploadNewButton" class="btn btn-warning" title="Upload New Image">
+            <i class="fas fa-upload"></i>
+        </button>
+        <!-- 3. Preview -->
+        <button id="previewButton" class="btn btn-secondary" title="Preview Result (Zoom/Pan)">
+            <i class="fas fa-search-plus"></i>
+        </button>
+        <!-- 4. Toggle Original/Result View -->
+        <button id="toggleViewButton" class="btn btn-secondary" title="Toggle Original/Result View">
+            <i class="fas fa-arrows-rotate"></i>
+        </button>
+    </div>
+
+    <!-- Original Image Preview Container -->
+    <div class="image-display hidden" id="previewContainer">
+        <img id="originalPreview" src="#" alt="Original Preview">
+    </div>
+
+    <!-- Result Image Container -->
+    <div class="image-display hidden" id="resultContainer">
+        <div id="resultWrapper" class="result-wrapper">
+             <img id="resultImage" src="#" alt="Result Image">
+        </div>
+    </div>
+
+    <!-- Color Palette -->
+    <div id="colorPalette" class="color-palette hidden">
+        <!-- Color swatches and BG Image trigger added here by JavaScript -->
+    </div>
+
+    <div id="status" class="hidden"></div>
+
+    <!-- Actions Container (Initial Remove Button) -->
+    <div id="actions">
+         <button id="removeBgButton" class="btn btn-warning hidden">Remove Background</button>
+    </div>
+
+    <!-- Hidden canvas for generating download image -->
+    <canvas id="tempCanvas" class="hidden"></canvas>
+
+</div>
+
+<!-- === NEW: Preview Modal HTML Structure === -->
+<div id="previewModal" class="preview-modal">
+    <div class="preview-modal-content">
+        <div class="preview-modal-header">
+            <h2>Image Preview</h2>
+            <button class="preview-modal-close" id="modalCloseButton">&times;</button>
+        </div>
+        <div class="preview-image-container" id="modalImageContainer">
+            <img id="modalImage" src="#" alt="Preview Image">
+        </div>
+        <div class="preview-modal-controls">
+            <button id="zoomOutButton" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+            <span id="zoomLevelIndicator">100%</span>
+            <button id="zoomInButton" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+            <button id="resetZoomButton" title="Reset Zoom & Pan"><i class="fas fa-expand"></i></button>
+        </div>
+    </div>
+</div>
+<!-- ======================================= -->
+
+
+<script>
+    // === JavaScript (API Key and most logic unchanged) ===
+    const apiKey = "LaPrnJa7qUD2Z4A3DQwkfLan"; // <-- Replace with your Key
+
+    // API Key Warning
+    if (apiKey === "YOUR_REMOVE_BG_API_KEY" || !apiKey) {
+        console.warn("Please replace 'YOUR_REMOVE_BG_API_KEY' with your actual remove.bg API key in the JavaScript section.");
+        const keyWarning = document.createElement('p');
+        keyWarning.textContent = "Warning: API Key not set. Background removal won't work.";
+        keyWarning.style.color = 'red'; keyWarning.style.marginTop = '15px'; keyWarning.style.fontWeight = 'bold';
+        document.querySelector('.card').appendChild(keyWarning);
+    }
+
+    // DOM Elements
+    const imageInput = document.getElementById('imageInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const previewContainer = document.getElementById('previewContainer');
+    const originalPreview = document.getElementById('originalPreview');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultWrapper = document.getElementById('resultWrapper');
+    const resultImage = document.getElementById('resultImage');
+    const statusDiv = document.getElementById('status');
+    const actionsDiv = document.getElementById('actions');
+    const removeBgButton = document.getElementById('removeBgButton');
+    const iconActionsGroup = document.getElementById('iconActions');
+    const downloadLink = document.getElementById('downloadLink');
+    const uploadNewButton = document.getElementById('uploadNewButton');
+    const toggleViewButton = document.getElementById('toggleViewButton');
+    const previewButton = document.getElementById('previewButton');
+    const colorPalette = document.getElementById('colorPalette');
+    const tempCanvas = document.getElementById('tempCanvas');
+    const ctx = tempCanvas.getContext('2d');
+    const customColorPickerInput = document.getElementById('customColorPickerInput');
+    const bgImageInput = document.getElementById('bgImageInput');
+    let customColorSwatch = null;
+    let bgImageTrigger = null;
+
+    // === NEW: Modal DOM Elements ===
+    const previewModal = document.getElementById('previewModal');
+    const modalCloseButton = document.getElementById('modalCloseButton');
+    const modalImageContainer = document.getElementById('modalImageContainer');
+    const modalImage = document.getElementById('modalImage');
+    const zoomInButton = document.getElementById('zoomInButton');
+    const zoomOutButton = document.getElementById('zoomOutButton');
+    const resetZoomButton = document.getElementById('resetZoomButton');
+    const zoomLevelIndicator = document.getElementById('zoomLevelIndicator');
+    // ============================
+
+    let selectedFile = null;
+    let resultObjectUrl = null;
+    let currentBackgroundType = 'transparent';
+    let currentBackgroundColor = 'transparent';
+    let currentBackgroundImageDataUrl = null;
+    let originalFileNameBase = 'image';
+
+    // === NEW: Modal State Variables ===
+    let modalCurrentScale = 1.0;
+    let modalTranslateX = 0;
+    let modalTranslateY = 0;
+    let isDragging = false;
+    let startDragX = 0;
+    let startDragY = 0;
+    const ZOOM_STEP = 0.2;
+    const MIN_ZOOM = 0.2;
+    const MAX_ZOOM = 5.0;
+    // ===============================
+
+    const backgroundColors = [
+        'transparent', '#FFFFFF', '#000000', '#FF5733', '#FFC300', '#DAF7A6',
+        '#33FFBD', '#33AFFF', '#5833FF', '#C70039', '#900C3F'
+    ];
+
+    // Reset UI Function (Minor adjustment: reset modal state)
+    function resetUI() {
+        selectedFile = null;
+        if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; }
+        imageInput.value = '';
+        bgImageInput.value = '';
+        currentBackgroundType = 'transparent';
+        currentBackgroundColor = 'transparent';
+        currentBackgroundImageDataUrl = null;
+        originalFileNameBase = 'image';
+        customColorPickerInput.value = '#ffffff';
+
+        uploadArea.classList.remove('hidden');
+        previewContainer.classList.add('hidden');
+        originalPreview.src = '#';
+        resultContainer.classList.add('hidden');
+        resultImage.src = '#';
+        colorPalette.classList.add('hidden');
+        colorPalette.innerHTML = '';
+        customColorSwatch = null;
+        bgImageTrigger = null;
+        resultWrapper.style.backgroundColor = 'transparent';
+        resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+        resultWrapper.classList.remove('has-bg-image');
+
+        statusDiv.classList.add('hidden');
+        statusDiv.textContent = '';
+        removeBgButton.classList.add('hidden');
+        iconActionsGroup.classList.add('hidden');
+        removeBgButton.disabled = true;
+        removeBgButton.textContent = 'Remove Background';
+        downloadLink.removeAttribute('data-bgcolor');
+        downloadLink.removeAttribute('data-bgimage');
+        downloadLink.removeAttribute('href');
+        downloadLink.title = "Download Image";
+
+        // NEW: Reset modal state on full UI reset
+        closePreviewModal(); // Ensure modal is closed
+        resetModalZoomAndPan(); // Reset zoom/pan state
+    }
+
+    // --- Populate Color Palette (Unchanged) ---
+    function populateColorPalette() {
+        colorPalette.innerHTML = '';
+        customColorSwatch = null;
+        bgImageTrigger = null;
+
+        backgroundColors.forEach(color => {
+            const swatch = createSwatch(color);
+            colorPalette.appendChild(swatch);
+        });
+
+        customColorSwatch = createSwatch('custom');
+        colorPalette.appendChild(customColorSwatch);
+
+        bgImageTrigger = document.createElement('div');
+        bgImageTrigger.classList.add('bg-image-trigger');
+        bgImageTrigger.title = 'Upload Background Image';
+        const bgIcon = document.createElement('i');
+        bgIcon.className = 'fas fa-image';
+        bgImageTrigger.appendChild(bgIcon);
+        bgImageTrigger.addEventListener('click', () => { bgImageInput.click(); });
+        colorPalette.appendChild(bgImageTrigger);
+
+        const transparentSwatch = colorPalette.querySelector('.transparent-swatch');
+        if (transparentSwatch) transparentSwatch.classList.add('active');
+
+        colorPalette.classList.remove('hidden');
+    }
+
+    // --- Create a single swatch element (Unchanged) ---
+    function createSwatch(color) {
+        const swatch = document.createElement('div');
+        swatch.classList.add('color-swatch');
+        swatch.dataset.color = color;
+        const icon = document.createElement('i');
+
+        if (color === 'transparent') {
+            swatch.classList.add('transparent-swatch');
+            swatch.title = 'Transparent Background';
+            icon.className = 'fas fa-ban';
+            swatch.appendChild(icon);
+            swatch.addEventListener('click', handleColorSelection);
+        } else if (color === 'custom') {
+            swatch.classList.add('custom-color-trigger');
+            swatch.title = 'Choose Custom Color';
+            icon.className = 'fas fa-palette';
+            swatch.appendChild(icon);
+            swatch.addEventListener('click', () => { customColorPickerInput.click(); });
+        } else {
+            swatch.style.backgroundColor = color;
+            swatch.title = `Background: ${color}`;
+            swatch.addEventListener('click', handleColorSelection);
+        }
+        return swatch;
+    }
+
+    // --- Handle Color Selection (Unchanged) ---
+    function handleColorSelection(event) {
+        const selectedSwatch = event.currentTarget;
+        const color = selectedSwatch.dataset.color;
+
+        currentBackgroundType = color === 'transparent' ? 'transparent' : 'color';
+        currentBackgroundColor = color;
+        currentBackgroundImageDataUrl = null;
+
+         if (color === 'transparent') {
+            resultWrapper.style.backgroundColor = 'transparent';
+            resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+            resultWrapper.classList.remove('has-bg-image');
+            downloadLink.title = "Download Transparent PNG";
+            downloadLink.download = `${originalFileNameBase}_bg_removed.png`;
+            downloadLink.removeAttribute('data-bgcolor');
+            downloadLink.removeAttribute('data-bgimage');
+            downloadLink.href = resultObjectUrl;
+        } else {
+            resultWrapper.style.backgroundColor = color;
+            resultWrapper.style.backgroundImage = 'none';
+            resultWrapper.classList.remove('has-bg-image');
+            downloadLink.title = `Download with ${color} Background`;
+            downloadLink.download = `${originalFileNameBase}_bg_${color.replace('#','')}.png`;
+            downloadLink.setAttribute('data-bgcolor', color);
+            downloadLink.removeAttribute('data-bgimage');
+            downloadLink.removeAttribute('href');
+        }
+
+        document.querySelectorAll('.color-palette .color-swatch, .color-palette .bg-image-trigger').forEach(s => s.classList.remove('active'));
+        selectedSwatch.classList.add('active');
+        if(bgImageTrigger) bgImageTrigger.classList.remove('active');
+    }
+
+    // --- Handle Custom Color Picker Input (Unchanged) ---
+    customColorPickerInput.addEventListener('input', (event) => {
+        const newColor = event.target.value;
+        if (customColorSwatch) {
+            customColorSwatch.style.backgroundColor = newColor;
+            customColorSwatch.dataset.color = newColor;
+            customColorSwatch.title = `Background: ${newColor}`;
+            customColorSwatch.innerHTML = '';
+            customColorSwatch.classList.add('has-custom-color');
+            // Re-attach listener if needed, ensure click triggers update correctly
+            customColorSwatch.removeEventListener('click', handleColorSelection); // Prevent duplicate if already added
+            customColorSwatch.addEventListener('click', handleColorSelection);
+            // Programmatically click to apply the selected custom color immediately
+            setTimeout(() => customColorSwatch.click(), 0);
+        }
+    });
+
+    // --- Handle Background Image Input (Unchanged) ---
+    bgImageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentBackgroundImageDataUrl = e.target.result;
+                currentBackgroundType = 'image';
+                currentBackgroundColor = 'transparent'; // Ensure color bg is inactive
+                resultWrapper.style.backgroundImage = `url('${currentBackgroundImageDataUrl}')`;
+                resultWrapper.style.backgroundColor = 'transparent'; // Ensure solid color doesn't interfere
+                resultWrapper.classList.add('has-bg-image');
+                downloadLink.title = 'Download with Custom Background Image';
+                downloadLink.download = `${originalFileNameBase}_with_custom_bg.png`;
+                downloadLink.removeAttribute('data-bgcolor');
+                downloadLink.setAttribute('data-bgimage', 'true'); // Indicate image background for download logic
+                downloadLink.removeAttribute('href'); // Force canvas generation for download
+                document.querySelectorAll('.color-palette .color-swatch, .color-palette .bg-image-trigger').forEach(s => s.classList.remove('active'));
+                if (bgImageTrigger) bgImageTrigger.classList.add('active');
+                statusDiv.textContent = 'Custom background image applied.';
+                statusDiv.classList.remove('hidden');
+            };
+            reader.onerror = () => {
+                console.error("Error reading background image file.");
+                statusDiv.textContent = 'Error loading background image.';
+                statusDiv.classList.remove('hidden');
+                currentBackgroundImageDataUrl = null;
+                 if (bgImageTrigger) bgImageTrigger.classList.remove('active');
+                 // Optionally revert to a default state like transparent if load fails
+            };
+            reader.readAsDataURL(file);
+        } else if (file) {
+            statusDiv.textContent = 'Please select a valid image file for the background.';
+            statusDiv.classList.remove('hidden');
+            bgImageInput.value = ''; // Clear the invalid selection
+        }
+    });
+
+     // --- Download with Background (Color or Image) (Unchanged) ---
+    function downloadWithBackground(type, value) {
+        // Ensure result image is loaded and has dimensions
+        if (!resultImage.src || resultImage.src.startsWith('http') === false || !resultImage.naturalWidth || resultImage.naturalWidth === 0) {
+             console.error("Result image not loaded or invalid for canvas operations.");
+             statusDiv.textContent = "Error: Cannot generate download. Result image invalid.";
+             statusDiv.classList.remove('hidden');
+             return;
+        }
+
+        const fgImg = new Image();
+        // Crucial for potentially tainted canvases if resultObjectUrl is cross-origin (though unlikely with Blob URL)
+        fgImg.crossOrigin = "Anonymous";
+
+        fgImg.onload = () => {
+            const imgWidth = fgImg.naturalWidth;
+            const imgHeight = fgImg.naturalHeight;
+            tempCanvas.width = imgWidth;
+            tempCanvas.height = imgHeight;
+            ctx.clearRect(0, 0, imgWidth, imgHeight); // Clear canvas
+
+            const drawForeground = () => {
+                ctx.drawImage(fgImg, 0, 0); // Draw the foreground (result image)
+                try {
+                    const dataUrl = tempCanvas.toDataURL('image/png'); // Get data URL
+                    const tempLink = document.createElement('a');
+                    tempLink.href = dataUrl;
+                    tempLink.download = downloadLink.download || `${originalFileNameBase}_processed.png`; // Use the name set on the link
+                    document.body.appendChild(tempLink);
+                    tempLink.click(); // Trigger download
+                    document.body.removeChild(tempLink); // Clean up
+                    statusDiv.textContent = "Download started...";
+                    statusDiv.classList.remove('hidden');
+                } catch (e) {
+                    console.error("Canvas toDataURL error:", e);
+                    statusDiv.textContent = "Error: Could not generate download. Canvas might be tainted.";
+                    if (e.name === "SecurityError") { statusDiv.textContent += " (Cross-origin image issue?)"; }
+                    statusDiv.classList.remove('hidden');
+                }
+            };
+
+            if (type === 'color' && value && value !== 'transparent') {
+                ctx.fillStyle = value; // Set background color
+                ctx.fillRect(0, 0, imgWidth, imgHeight); // Fill background
+                drawForeground(); // Draw foreground on top
+            } else if (type === 'image' && value) {
+                const bgImg = new Image();
+                bgImg.crossOrigin = "Anonymous"; // Important if background image is from another domain
+                bgImg.onload = () => {
+                    // --- Background Image Scaling (Cover logic) ---
+                    const canvasAspect = imgWidth / imgHeight;
+                    const bgAspect = bgImg.naturalWidth / bgImg.naturalHeight;
+                    let sx = 0, sy = 0, sw = bgImg.naturalWidth, sh = bgImg.naturalHeight; // Source rect
+                    let dx = 0, dy = 0, dw = imgWidth, dh = imgHeight; // Destination rect (full canvas)
+
+                    // Determine cropping to cover canvas while maintaining aspect ratio
+                    if (bgAspect > canvasAspect) { // Background image is wider than canvas ratio
+                        sw = bgImg.naturalHeight * canvasAspect; // Crop width
+                        sx = (bgImg.naturalWidth - sw) / 2; // Center horizontally
+                    } else { // Background image is taller or same ratio
+                        sh = bgImg.naturalWidth / canvasAspect; // Crop height
+                        sy = (bgImg.naturalHeight - sh) / 2; // Center vertically
+                    }
+                    ctx.drawImage(bgImg, sx, sy, sw, sh, dx, dy, dw, dh); // Draw scaled/cropped background
+                    // --- End Background Scaling ---
+                    drawForeground(); // Draw foreground on top
+                };
+                bgImg.onerror = () => {
+                     console.error("Error loading background image into canvas.");
+                     statusDiv.textContent = "Error: Could not prepare background for download.";
+                     statusDiv.classList.remove('hidden');
+                };
+                bgImg.src = value; // Load the background image (Data URL)
+            } else {
+                 // This case should ideally not happen if triggered correctly, but handle defensively
+                 console.warn("Download function called unexpectedly for transparent or invalid background.");
+                 // Maybe default to transparent download here?
+                 // drawForeground(); // Or just draw foreground? Depends on desired fallback.
+                 statusDiv.textContent = "Error: Invalid background type for download generation.";
+                 statusDiv.classList.remove('hidden');
+            }
+        };
+        fgImg.onerror = () => {
+            console.error("Error loading result image into canvas for download.");
+            statusDiv.textContent = "Error: Could not prepare foreground for download.";
+            statusDiv.classList.remove('hidden');
+        };
+        // Make sure we are loading the object URL
+        fgImg.src = resultImage.src; // Load the foreground (result) image
+    }
+
+    // imageInput change listener (Unchanged)
+    imageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+             // --- File Type Validation ---
+             if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+                 statusDiv.textContent = 'Error: Please upload a PNG, JPG, or WEBP file.';
+                 statusDiv.classList.remove('hidden');
+                 resetUI(); // Reset fully
+                 // Keep upload area visible? Yes, resetUI does this.
+                 return;
+            }
+             // --- End File Type Validation ---
+
+            // Clear previous result state
+            if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; }
+            currentBackgroundType = 'transparent'; // Reset background state
+            currentBackgroundColor = 'transparent';
+            currentBackgroundImageDataUrl = null;
+            resultWrapper.style.backgroundColor = 'transparent';
+            resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)'; // Reset visual bg
+             resultWrapper.classList.remove('has-bg-image'); // Ensure class is removed
+            downloadLink.removeAttribute('data-bgcolor'); // Clear download attributes
+            downloadLink.removeAttribute('data-bgimage');
+            downloadLink.removeAttribute('href');
+            downloadLink.title = "Download Image"; // Reset title
+            colorPalette.classList.add('hidden'); // Hide palette
+            colorPalette.innerHTML = ''; // Clear palette
+            customColorSwatch = null; // Clear swatch refs
+            bgImageTrigger = null;
+            resultContainer.classList.add('hidden'); // Hide result area
+            iconActionsGroup.classList.add('hidden'); // Hide action icons
+            customColorPickerInput.value = '#ffffff'; // Reset custom color picker
+            bgImageInput.value = ''; // Reset bg image input
+
+            // Process the new file
+            selectedFile = file;
+            const originalFileName = selectedFile.name;
+            originalFileNameBase = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName; // Get base name
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalPreview.src = e.target.result; // Show preview of original
+                previewContainer.classList.remove('hidden');
+            }
+            reader.onerror = () => {
+                 console.error("Error reading image file for preview.");
+                 statusDiv.textContent = 'Error loading image preview.';
+                 statusDiv.classList.remove('hidden');
+                 resetUI(); // Reset if preview fails
+            };
+            reader.readAsDataURL(selectedFile);
+
+            uploadArea.classList.add('hidden'); // Hide upload area
+            statusDiv.textContent = `Ready to process: ${selectedFile.name}`;
+            statusDiv.classList.remove('hidden');
+            removeBgButton.classList.remove('hidden'); // Show remove button
+            removeBgButton.disabled = false; // Enable it
+            removeBgButton.textContent = 'Remove Background'; // Set text
+            actionsDiv.classList.remove('hidden'); // Ensure actions container is visible if needed
+        } else {
+            // No file selected (e.g., user cancelled)
+            selectedFile = null;
+            // Only reset fully if something was previously shown
+            if (!previewContainer.classList.contains('hidden') || !removeBgButton.classList.contains('hidden')) {
+                 resetUI();
+            } else {
+                 // Otherwise, just ensure upload area is visible
+                 uploadArea.classList.remove('hidden');
+                 statusDiv.classList.add('hidden');
+            }
+        }
+    });
+
+    // removeBgButton click listener (Unchanged logic, just ensure preview button is hidden initially)
+    removeBgButton.addEventListener('click', () => {
+        if (!selectedFile) {
+            statusDiv.textContent = 'Please select an image first.';
+            statusDiv.classList.remove('hidden');
+            return;
+         }
+        if (apiKey === "YOUR_REMOVE_BG_API_KEY" || !apiKey) {
+            statusDiv.textContent = 'API Key not configured. Cannot remove background.';
+            statusDiv.classList.remove('hidden');
+            console.error("remove.bg API Key missing.");
+            return;
+        }
+
+        // --- UI Update: Processing State ---
+        statusDiv.textContent = 'Processing, please wait...';
+        statusDiv.classList.remove('hidden');
+        removeBgButton.disabled = true;
+        removeBgButton.textContent = 'Processing...';
+        iconActionsGroup.classList.add('hidden'); // Ensure icons (incl. preview) are hidden
+        previewContainer.classList.add('hidden'); // Hide original preview during processing
+        resultContainer.classList.add('hidden'); // Hide any previous result
+        colorPalette.classList.add('hidden'); // Hide palette during processing
+        // --- End UI Update ---
+
+        const formData = new FormData();
+        formData.append('image_file', selectedFile);
+        formData.append('size', 'auto'); // Use 'auto' for best quality generally
+
+        fetch('https://api.remove.bg/v1.0/removebg', {
+            method: 'POST',
+            headers: { 'X-Api-Key': apiKey },
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Try to parse error from API response body
+                return response.json().then(errData => {
+                    // Try to get a specific error message
+                    const message = errData?.errors?.[0]?.title || `HTTP error ${response.status}`;
+                    throw new Error(message);
+                }).catch(() => {
+                    // Fallback if JSON parsing fails or error format is different
+                    throw new Error(`API request failed with status ${response.status}.`);
+                });
+            }
+            return response.blob(); // Get result as a Blob
+        })
+        .then(blob => {
+            if (!blob || blob.size === 0) {
+                throw new Error("Received empty response from API."); // Handle empty blob
+            }
+            // Basic check if the response is actually an image (more robust checks might be needed)
+            if (!blob.type.startsWith('image/')) {
+                // Attempt to read as text to see if it's an error message in disguise
+                 return blob.text().then(errorText => {
+                     throw new Error(`API returned unexpected data type: ${blob.type}. Content: ${errorText.substring(0, 100)}`);
+                 }).catch(() => {
+                     throw new Error(`API returned unexpected data type: ${blob.type}.`);
+                 });
+            }
+
+
+            if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); } // Clean up previous URL
+            resultObjectUrl = URL.createObjectURL(blob); // Create URL for the result blob
+
+            resultImage.onload = () => {
+                // --- UI Update: Success State ---
+                resultContainer.classList.remove('hidden'); // Show result container
+                previewContainer.classList.add('hidden'); // Keep original hidden initially
+                // Reset background to default transparent checkerboard
+                currentBackgroundType = 'transparent';
+                currentBackgroundColor = 'transparent';
+                currentBackgroundImageDataUrl = null;
+                resultWrapper.style.backgroundColor = 'transparent';
+                resultWrapper.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%)';
+                 resultWrapper.classList.remove('has-bg-image');
+                // Setup download link for the default transparent image
+                downloadLink.href = resultObjectUrl;
+                downloadLink.download = `${originalFileNameBase}_bg_removed.png`; // Set download filename
+                downloadLink.removeAttribute('data-bgcolor'); // Clear background attributes
+                downloadLink.removeAttribute('data-bgimage');
+                downloadLink.title = "Download Transparent PNG"; // Update tooltip
+                // Update status message
+                statusDiv.textContent = 'Background removal complete! Select a background option below.';
+                statusDiv.classList.remove('hidden');
+                // Update button states
+                removeBgButton.classList.add('hidden'); // Hide remove button
+                removeBgButton.textContent = 'Remove Background'; // Reset text for next time
+                iconActionsGroup.classList.remove('hidden'); // <<< Show the reordered icon buttons >>>
+                toggleViewButton.title = "Show Original"; // Set toggle button title
+                // Populate and show the color palette
+                populateColorPalette();
+                // --- End UI Update ---
+            };
+            resultImage.onerror = () => {
+                 // Handle case where the blob URL is created but image fails to load
+                 if (resultObjectUrl) URL.revokeObjectURL(resultObjectUrl);
+                 resultObjectUrl = null;
+                 throw new Error('Failed to load the processed image data into the image element.');
+            };
+            resultImage.src = resultObjectUrl; // Set the source for the result image
+        })
+        .catch(error => {
+            console.error('Background removal process failed:', error);
+            statusDiv.textContent = `Error: ${error.message || 'Background removal failed.'}`;
+            statusDiv.classList.remove('hidden');
+
+            // --- UI Update: Error State ---
+            removeBgButton.disabled = false; // Re-enable button
+            removeBgButton.textContent = 'Remove Background';
+            removeBgButton.classList.remove('hidden'); // Keep remove button visible for retry
+            iconActionsGroup.classList.add('hidden'); // Hide icons
+            // Decide whether to show original preview or upload area based on state
+            if(selectedFile && originalPreview.src !== '#') {
+                previewContainer.classList.remove('hidden'); // Show original if available
+            } else {
+                previewContainer.classList.add('hidden');
+                uploadArea.classList.remove('hidden'); // Otherwise show upload area
+            }
+            resultContainer.classList.add('hidden'); // Hide result area
+            colorPalette.classList.add('hidden'); // Hide palette
+            if (resultObjectUrl) { URL.revokeObjectURL(resultObjectUrl); resultObjectUrl = null; } // Clean up blob URL if exists
+            resultImage.src = '#'; // Clear result image src
+             // --- End UI Update ---
+        });
+    });
+
+    // uploadNewButton listener (Unchanged)
+    uploadNewButton.addEventListener('click', resetUI);
+
+    // toggleViewButton listener (Unchanged)
+    toggleViewButton.addEventListener('click', () => {
+        // Only toggle if there is a result image loaded
+        if (!resultImage.src || resultImage.src === '#' || resultContainer.classList.contains('hidden') && previewContainer.classList.contains('hidden')) return;
+
+        const isResultHidden = resultContainer.classList.contains('hidden');
+
+        if (isResultHidden) { // Currently showing original, switch to result
+            previewContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            colorPalette.classList.remove('hidden'); // Show palette when result is visible
+            toggleViewButton.title = 'Show Original';
+        } else { // Currently showing result, switch to original
+            previewContainer.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            colorPalette.classList.add('hidden'); // Hide palette when original is visible
+            toggleViewButton.title = 'Show Result';
+        }
+    });
+
+    // Download Link Click Handler (Unchanged)
+     downloadLink.addEventListener('click', (event) => {
+        const bgColor = downloadLink.getAttribute('data-bgcolor');
+        const bgImageFlag = downloadLink.getAttribute('data-bgimage');
+
+        // Prevent default download if the href is set (for transparent)
+        // only if we need to generate a background via canvas.
+        if ((bgImageFlag === 'true' && currentBackgroundImageDataUrl) || (bgColor && bgColor !== 'transparent')) {
+             // Check if result image is actually loaded before attempting canvas generation
+             if (!resultObjectUrl || resultImage.src === '#' || !resultImage.naturalWidth) {
+                event.preventDefault(); // Stop any potential default action
+                console.error("Download aborted: Result image not ready.");
+                statusDiv.textContent = "Error: Result image not loaded, cannot generate download.";
+                statusDiv.classList.remove('hidden');
+                return;
+             }
+            // Prevent the default anchor link behavior (using href)
+            event.preventDefault();
+            if (bgImageFlag === 'true' && currentBackgroundImageDataUrl) {
+                 downloadWithBackground('image', currentBackgroundImageDataUrl);
+            } else if (bgColor && bgColor !== 'transparent') {
+                 downloadWithBackground('color', bgColor);
+            }
+        } else if (downloadLink.href && downloadLink.href !== '#') {
+            // Allow default download for transparent PNG if href is set
+            // No prevention needed, the browser handles the download via href attribute.
+             statusDiv.textContent = "Starting transparent PNG download...";
+             statusDiv.classList.remove('hidden');
+        } else {
+             // Fallback: Prevent if href isn't properly set or trying to download without conditions met
+             event.preventDefault();
+             console.warn("Download conditions not met or href missing.");
+             statusDiv.textContent = "Cannot start download. Please select a background or ensure image is processed.";
+             statusDiv.classList.remove('hidden');
+        }
+    });
+
+    // === NEW: Preview Modal Functionality ===
+
+    function openPreviewModal() {
+        if (!resultObjectUrl || !resultImage.src || resultImage.src === '#') {
+            console.warn("Preview requested but no result image available.");
+            statusDiv.textContent = "Please remove background first to preview.";
+            statusDiv.classList.remove('hidden');
+            return;
+        }
+        modalImage.src = resultImage.src; // Use the currently displayed result image src
+        resetModalZoomAndPan(); // Reset state every time it opens
+        previewModal.style.display = 'flex'; // Show the modal (using flex for centering)
+        document.body.style.overflow = 'hidden'; // Prevent body scrolling
+    }
+
+    function closePreviewModal() {
+        if (previewModal.style.display !== 'none') {
+            previewModal.style.display = 'none';
+            document.body.style.overflow = ''; // Restore body scrolling
+            // Don't clear modalImage.src here, it points to resultObjectUrl which should persist
+        }
+    }
+
+    function updateModalTransform() {
+        // Get dimensions AFTER scale/transform might have affected layout
+        const imgWidthScaled = modalImage.offsetWidth * modalCurrentScale;
+        const imgHeightScaled = modalImage.offsetHeight * modalCurrentScale;
+        const containerWidth = modalImageContainer.clientWidth;
+        const containerHeight = modalImageContainer.clientHeight;
+
+        // Calculate maximum allowed translation to keep the image edges near the container edges
+        const maxTX = Math.max(0, (imgWidthScaled - containerWidth) / (2 * modalCurrentScale)); // Divide by scale for translate units
+        const maxTY = Math.max(0, (imgHeightScaled - containerHeight) / (2 * modalCurrentScale));
+
+        // Clamp translation values
+        modalTranslateX = Math.max(-maxTX, Math.min(maxTX, modalTranslateX));
+        modalTranslateY = Math.max(-maxTY, Math.min(maxTY, modalTranslateY));
+
+        // Apply transform
+        modalImage.style.transform = `scale(${modalCurrentScale}) translate(${modalTranslateX}px, ${modalTranslateY}px)`;
+        zoomLevelIndicator.textContent = `${Math.round(modalCurrentScale * 100)}%`;
+
+        // Update cursor based on zoom level (only grab if zoomed in)
+        modalImageContainer.style.cursor = (modalCurrentScale > 1.0) ? 'grab' : 'default';
+    }
+
+
+    function resetModalZoomAndPan() {
+        modalCurrentScale = 1.0;
+        modalTranslateX = 0;
+        modalTranslateY = 0;
+        // Reset container scroll just in case (though overflow: auto might not be needed with transform panning)
+        // modalImageContainer.scrollTop = 0;
+        // modalImageContainer.scrollLeft = 0;
+        updateModalTransform(); // Apply reset transform
+    }
+
+    // --- Modal Event Listeners ---
+
+    // Listener for the Preview Button
+    previewButton.addEventListener('click', openPreviewModal);
+
+    // Close button inside modal
+    modalCloseButton.addEventListener('click', closePreviewModal);
+
+    // Close modal if background (overlay) is clicked
+    previewModal.addEventListener('click', (event) => {
+        // Check if the click target is the modal overlay itself, not its content
+        if (event.target === previewModal) {
+            closePreviewModal();
+        }
+    });
+
+    // Zoom controls
+    zoomInButton.addEventListener('click', () => {
+        modalCurrentScale = Math.min(MAX_ZOOM, modalCurrentScale + ZOOM_STEP);
+        updateModalTransform();
+    });
+
+    zoomOutButton.addEventListener('click', () => {
+        const newScale = Math.max(MIN_ZOOM, modalCurrentScale - ZOOM_STEP);
+        // If zooming out makes scale <= 1, snap to 1 and reset pan
+        if (newScale <= 1.0 && modalCurrentScale > 1.0) {
+            modalCurrentScale = 1.0;
+            modalTranslateX = 0;
+            modalTranslateY = 0;
+        } else {
+            modalCurrentScale = newScale;
+        }
+        updateModalTransform();
+    });
+
+    resetZoomButton.addEventListener('click', resetModalZoomAndPan);
+
+    // --- Panning (Drag) Logic ---
+    modalImageContainer.addEventListener('mousedown', (event) => {
+         // Only allow dragging if zoomed in (scale > 1) and it's the primary mouse button (usually left)
+        if (modalCurrentScale > 1.0 && event.button === 0) {
+            isDragging = true;
+            // Calculate starting mouse position relative to the image's current translation (scaled)
+            startDragX = event.clientX - modalTranslateX * modalCurrentScale;
+            startDragY = event.clientY - modalTranslateY * modalCurrentScale;
+            modalImageContainer.classList.add('grabbing'); // Change cursor
+            modalImageContainer.style.userSelect = 'none'; // Prevent text selection during drag
+            event.preventDefault(); // Prevent default drag behavior (like image ghosting)
+        }
+    });
+
+    // Use document events for mousemove/mouseup to capture dragging outside the container
+    document.addEventListener('mousemove', (event) => {
+        if (isDragging) {
+            event.preventDefault();
+            // Calculate new translation based on mouse movement, adjusted for current scale
+            modalTranslateX = (event.clientX - startDragX) / modalCurrentScale;
+            modalTranslateY = (event.clientY - startDragY) / modalCurrentScale;
+            updateModalTransform(); // Apply the new transform (includes boundary checks)
+        }
+    });
+
+    document.addEventListener('mouseup', (event) => {
+        // Only stop dragging if it was initiated with the primary button
+        if (isDragging && event.button === 0) {
+            isDragging = false;
+            modalImageContainer.classList.remove('grabbing');
+            modalImageContainer.style.userSelect = ''; // Restore selection behavior
+        }
+    });
+
+     // Handle mouse leaving the window while dragging to prevent getting stuck
+    document.addEventListener('mouseleave', (event) => {
+       // Check if mouse button is still pressed when leaving window (some browsers might report button up on mouseleave)
+       // A simple check: if isDragging is true, stop it.
+       if (isDragging) {
+           isDragging = false;
+           modalImageContainer.classList.remove('grabbing');
+           modalImageContainer.style.userSelect = '';
+       }
+    });
+
+
+    // === End: Preview Modal Functionality ===
+
+
+    // Initial setup and cleanup
+    document.addEventListener('DOMContentLoaded', resetUI); // Initialize UI on load
+    window.addEventListener('beforeunload', () => {
+        // Clean up the object URL when the page is closed/reloaded
+        if (resultObjectUrl) {
+            URL.revokeObjectURL(resultObjectUrl);
+        }
+    });
+
+</script>
+
+</body>
+</html>
